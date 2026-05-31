@@ -989,14 +989,14 @@ function log(level, title, content) {
 }
 
 let console = {
-    log: (content) => {
-        log('info', 'JS Console', content)
+    log: (...args) => {
+        log('info', 'JS Console', args.map(a => a === null ? 'null' : a === undefined ? 'undefined' : String(a)).join(' '))
     },
-    warn: (content) => {
-        log('warning', 'JS Console', content)
+    warn: (...args) => {
+        log('warning', 'JS Console', args.map(a => a === null ? 'null' : a === undefined ? 'undefined' : String(a)).join(' '))
     },
-    error: (content) => {
-        log('error', 'JS Console', content)
+    error: (...args) => {
+        log('error', 'JS Console', args.map(a => a === null ? 'null' : a === undefined ? 'undefined' : String(a)).join(' '))
     },
 };
 

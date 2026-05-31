@@ -727,7 +727,7 @@ class JSAutoFreeFunction {
   }
 
   dynamic call(List<dynamic> args) {
-    return func(args);
+    return func.invoke(args);
   }
 
   static final finalizer = Finalizer<JSInvokable>((func) {

@@ -58,6 +58,7 @@ class _ReaderGestureDetectorState extends AutomaticGlobalState<_ReaderGestureDet
           return;
         }
         fingers++;
+        reader.onUserInteractionStart();
         if (ignoreNextTag) {
           ignoreNextTag = false;
           return;
@@ -98,6 +99,7 @@ class _ReaderGestureDetectorState extends AutomaticGlobalState<_ReaderGestureDet
       },
       onPointerUp: (event) {
         fingers--;
+        reader.onUserInteractionEnd();
         if (_longPressInProgress) {
           onLongPressedUp(event.position);
         }
@@ -112,6 +114,7 @@ class _ReaderGestureDetectorState extends AutomaticGlobalState<_ReaderGestureDet
       },
       onPointerCancel: (event) {
         fingers--;
+        reader.onUserInteractionEnd();
         if (_longPressInProgress) {
           onLongPressedUp(event.position);
         }

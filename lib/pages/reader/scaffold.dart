@@ -116,6 +116,11 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
     setState(() {
       _isOpen = !_isOpen;
     });
+    if (_isOpen) {
+      context.reader.pauseAutoPageTurning();
+    } else {
+      context.reader.resumeAutoPageTurning();
+    }
   }
 
   bool? rotation;
@@ -456,8 +461,10 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
       Tooltip(
         message: "Auto Page Turning".tl,
         child: IconButton(
-          icon: context.reader.autoPageTurningTimer != null
-              ? const Icon(Icons.timer)
+          icon: context.reader.isAutoPageTurning
+              ? (context.reader.isAutoPageTurningPaused 
+                  ? const Icon(Icons.pause_circle_filled)
+                  : const Icon(Icons.timer))
               : const Icon(Icons.timer_sharp),
           onPressed: () {
             context.reader.autoPageTurning(

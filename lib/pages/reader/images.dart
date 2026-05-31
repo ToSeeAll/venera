@@ -642,6 +642,18 @@ class _GalleryModeState extends State<_GalleryMode>
 
     return reader.images![startIndex];
   }
+
+  @override
+  void Function()? get startSmoothAutoScroll => null;
+
+  @override
+  void Function()? get stopSmoothAutoScroll => null;
+
+  @override
+  void Function()? get pauseSmoothAutoScroll => null;
+
+  @override
+  void Function()? get resumeSmoothAutoScroll => null;
 }
 
 const Set<PointerDeviceKind> _kTouchLikeDeviceTypes = <PointerDeviceKind>{
@@ -703,6 +715,11 @@ class _ContinuousModeState extends State<_ContinuousMode>
   bool isZoomedIn = false;
   bool isLongPressing = false;
 
+  bool _isSmoothAutoScrolling = false;
+  bool _isSmoothAutoScrollPaused = false;
+  double _smoothAutoScrollTarget = 0;
+  Timer? _smoothAutoScrollTimer;
+
   @override
   void initState() {
     reader = context.reader;
@@ -719,6 +736,7 @@ class _ContinuousModeState extends State<_ContinuousMode>
   @override
   void dispose() {
     itemPositionsListener.itemPositions.removeListener(onPositionChanged);
+    _stopSmoothAutoScroll();
     super.dispose();
   }
 
@@ -1210,6 +1228,76 @@ class _ContinuousModeState extends State<_ContinuousMode>
       }
     }
     return imageKey;
+  }
+
+  @override
+  void Function()? get startSmoothAutoScroll => _startSmoothAutoScroll;
+
+  @override
+  void Function()? get stopSmoothAutoScroll => _stopSmoothAutoScroll;
+
+  @override
+  void Function()? get pauseSmoothAutoScroll => _pauseSmoothAutoScroll;
+
+  @override
+  void Function()? get resumeSmoothAutoScroll => _resumeSmoothAutoScroll;
+
+  void _startSmoothAutoScroll() {
+    if (_scrollController == null || !_scrollController!.hasClients) return;
+    
+    _isSmoothAutoScrolling = true;
+    _isSmoothAutoScrollPaused = false;
+    _smoothAutoScrollTarget = _scrollController!.position.pixels;
+    
+    int interval = appdata.settings.getReaderSetting(
+      reader.cid,
+      reader.type.sourceKey,
+      'autoPageTurningInterval',
+    );
+    
+    _smoothAutoScrollTimer?.cancel();
+    _smoothAutoScrollTimer = Timer.periodic(Duration(milliseconds: 16), (timer) {
+      if (!_isSmoothAutoScrolling || _isSmoothAutoScrollPaused) return;
+      
+      if (_scrollController == null || !_scrollController!.hasClients) {
+        _stopSmoothAutoScroll();
+        return;
+      }
+      
+      double screenHeight = _scrollController!.position.viewportDimension;
+      double scrollSpeed = screenHeight / (interval * 60);
+      
+      _smoothAutoScrollTarget += scrollSpeed;
+      
+      double maxScroll = _scrollController!.position.maxScrollExtent;
+      if (_smoothAutoScrollTarget >= maxScroll) {
+        _stopSmoothAutoScroll();
+        reader.stopAutoPageTurning();
+        return;
+      }
+      
+      _scrollController!.jumpTo(_smoothAutoScrollTarget);
+    });
+  }
+
+  void _stopSmoothAutoScroll() {
+    _isSmoothAutoScrolling = false;
+    _isSmoothAutoScrollPaused = false;
+    _smoothAutoScrollTimer?.cancel();
+    _smoothAutoScrollTimer = null;
+  }
+
+  void _pauseSmoothAutoScroll() {
+    if (!_isSmoothAutoScrolling) return;
+    _isSmoothAutoScrollPaused = true;
+  }
+
+  void _resumeSmoothAutoScroll() {
+    if (!_isSmoothAutoScrolling) return;
+    _isSmoothAutoScrollPaused = false;
+    if (_scrollController != null && _scrollController!.hasClients) {
+      _smoothAutoScrollTarget = _scrollController!.position.pixels;
+    }
   }
 }
 

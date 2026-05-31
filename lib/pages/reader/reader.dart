@@ -273,7 +273,7 @@ class _ReaderState extends State<Reader>
     if (isFullscreen) {
       fullscreen();
     }
-    autoPageTurningTimer?.cancel();
+    stopAutoPageTurning();
     focusNode.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     stopVolumeEvent();
@@ -618,6 +618,8 @@ abstract mixin class _ReaderLocation {
 
   ComicType get type;
 
+  ReaderMode get mode;
+
   void update();
 
   bool enablePageAnimation(String cid, ComicType type) => appdata.settings
@@ -707,24 +709,109 @@ abstract mixin class _ReaderLocation {
   }
 
   Timer? autoPageTurningTimer;
+  bool _isAutoPageTurningPaused = false;
+  Timer? _autoPageTurningResumeTimer;
+  bool _isSmoothAutoScrollEnabled = false;
+  bool _isUserInteracting = false;
+
+  bool get isAutoPageTurning => autoPageTurningTimer != null || _isSmoothAutoScrollEnabled;
+  bool get isAutoPageTurningPaused => _isAutoPageTurningPaused;
 
   void autoPageTurning(String cid, ComicType type) {
-    if (autoPageTurningTimer != null) {
-      autoPageTurningTimer!.cancel();
-      autoPageTurningTimer = null;
+    if (isAutoPageTurning) {
+      stopAutoPageTurning();
     } else {
-      int interval = appdata.settings.getReaderSetting(
-        cid,
-        type.sourceKey,
-        'autoPageTurningInterval',
-      );
-      autoPageTurningTimer = Timer.periodic(Duration(seconds: interval), (_) {
-        if (page == maxPage) {
-          autoPageTurningTimer!.cancel();
-        }
-        toNextPage();
-      });
+      startAutoPageTurning(cid, type);
     }
+  }
+
+  void startAutoPageTurning(String cid, ComicType type) {
+    bool smoothScroll = appdata.settings.getReaderSetting(
+      cid,
+      type.sourceKey,
+      'smoothAutoScroll',
+    ) ?? true;
+    
+    if (smoothScroll && mode.isContinuous) {
+      _startSmoothAutoScroll(cid, type);
+    } else {
+      _startPageByPageAutoScroll(cid, type);
+    }
+  }
+
+  void _startPageByPageAutoScroll(String cid, ComicType type) {
+    int interval = appdata.settings.getReaderSetting(
+      cid,
+      type.sourceKey,
+      'autoPageTurningInterval',
+    );
+    autoPageTurningTimer = Timer.periodic(Duration(seconds: interval), (_) {
+      if (!_isAutoPageTurningPaused && page < maxPage) {
+        toNextPage();
+      } else if (page >= maxPage) {
+        stopAutoPageTurning();
+      }
+    });
+  }
+
+  void _startSmoothAutoScroll(String cid, ComicType type) {
+    _isSmoothAutoScrollEnabled = true;
+    _isAutoPageTurningPaused = false;
+    _imageViewController?.startSmoothAutoScroll?.call();
+  }
+
+  void stopAutoPageTurning() {
+    autoPageTurningTimer?.cancel();
+    autoPageTurningTimer = null;
+    _autoPageTurningResumeTimer?.cancel();
+    _autoPageTurningResumeTimer = null;
+    _isSmoothAutoScrollEnabled = false;
+    _isAutoPageTurningPaused = false;
+    _isUserInteracting = false;
+    _imageViewController?.stopSmoothAutoScroll?.call();
+  }
+
+  void pauseAutoPageTurning() {
+    if (!isAutoPageTurning || _isAutoPageTurningPaused) return;
+    _isAutoPageTurningPaused = true;
+    _autoPageTurningResumeTimer?.cancel();
+    _autoPageTurningResumeTimer = null;
+    if (_isSmoothAutoScrollEnabled) {
+      _imageViewController?.pauseSmoothAutoScroll?.call();
+    }
+  }
+
+  void resumeAutoPageTurning() {
+    if (!isAutoPageTurning || !_isAutoPageTurningPaused) return;
+    _isAutoPageTurningPaused = false;
+    if (_isSmoothAutoScrollEnabled) {
+      _imageViewController?.resumeSmoothAutoScroll?.call();
+    }
+  }
+
+  void pauseAutoPageTurningTemporarily() {
+    if (!isAutoPageTurning) return;
+    pauseAutoPageTurning();
+    _autoPageTurningResumeTimer?.cancel();
+    int resumeDelay = appdata.settings.getReaderSetting(
+      cid,
+      type.sourceKey,
+      'autoScrollResumeDelay',
+    ) ?? 3000;
+    _autoPageTurningResumeTimer = Timer(Duration(milliseconds: resumeDelay), () {
+      if (isAutoPageTurning && _isAutoPageTurningPaused && !_isUserInteracting) {
+        resumeAutoPageTurning();
+      }
+    });
+  }
+
+  void onUserInteractionStart() {
+    _isUserInteracting = true;
+    pauseAutoPageTurningTemporarily();
+  }
+
+  void onUserInteractionEnd() {
+    _isUserInteracting = false;
   }
 }
 
@@ -811,4 +898,10 @@ abstract interface class _ImageViewController {
   Future<Uint8List?> getImageByOffset(Offset offset);
 
   String? getImageKeyByOffset(Offset offset);
+
+  /// Smooth auto scroll methods
+  void Function()? get startSmoothAutoScroll;
+  void Function()? get stopSmoothAutoScroll;
+  void Function()? get pauseSmoothAutoScroll;
+  void Function()? get resumeSmoothAutoScroll;
 }

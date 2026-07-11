@@ -66,6 +66,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
           reader.isLoading = false;
           inProgress = false;
         });
+        reader.stopAutoPageTurning();
       }
     } else {
       var cp = reader.widget.chapters?.ids.elementAtOrNull(reader.chapter - 1);
@@ -79,6 +80,7 @@ class _ReaderImagesState extends State<_ReaderImages> {
           reader.isLoading = false;
           inProgress = false;
         });
+        reader.stopAutoPageTurning();
       } else {
         setState(() {
           reader.images = res.data;
@@ -730,6 +732,16 @@ class _ContinuousModeState extends State<_ContinuousMode>
       const Duration(milliseconds: 100),
       () => cacheImages(reader.page),
     );
+    if (reader._isSmoothAutoScrollEnabled) {
+      Future.delayed(
+        const Duration(milliseconds: 300),
+        () {
+          if (reader._isSmoothAutoScrollEnabled && mounted) {
+            _startSmoothAutoScroll();
+          }
+        },
+      );
+    }
     super.initState();
   }
 
@@ -1272,7 +1284,9 @@ class _ContinuousModeState extends State<_ContinuousMode>
       double maxScroll = _scrollController!.position.maxScrollExtent;
       if (_smoothAutoScrollTarget >= maxScroll) {
         _stopSmoothAutoScroll();
-        reader.stopAutoPageTurning();
+        if (!reader.toNextChapter()) {
+          reader.stopAutoPageTurning();
+        }
         return;
       }
       

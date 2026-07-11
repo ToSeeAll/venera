@@ -746,10 +746,13 @@ abstract mixin class _ReaderLocation {
       'autoPageTurningInterval',
     );
     autoPageTurningTimer = Timer.periodic(Duration(seconds: interval), (_) {
-      if (!_isAutoPageTurningPaused && page < maxPage) {
+      if (_isAutoPageTurningPaused || isLoading) return;
+      if (page < maxPage) {
         toNextPage();
       } else if (page >= maxPage) {
-        stopAutoPageTurning();
+        if (!toNextChapter()) {
+          stopAutoPageTurning();
+        }
       }
     });
   }
